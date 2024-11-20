@@ -9,11 +9,11 @@ from ydata_profiling import ProfileReport
 # Create a directory to save model_dir if it doesn't exist
 if not os.path.exists('model_dir'):
     
-import tempfile
+    import tempfile
 
-# Temporary Directory Handling for Deployment
-temp_dir = tempfile.TemporaryDirectory()
-model_dir = temp_dir.name
+    # Temporary Directory Handling for Deployment
+    temp_dir = tempfile.TemporaryDirectory()
+    model_dir = temp_dir.name
 
 
 # Initialize session state for recent actions
