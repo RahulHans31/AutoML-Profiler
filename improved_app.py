@@ -2,19 +2,13 @@ import streamlit as st
 import os
 import pandas as pd
 import pickle
-from pycaret.classification import setup as setup_classification, compare_model_dir as compare_model_dir_classification, pull as pull_classification
-from pycaret.regression import setup as setup_regression, compare_model_dir as compare_model_dir_regression, pull as pull_regression
+from pycaret.classification import setup as setup_classification, compare_models as compare_models_classification, pull as pull_classification
+from pycaret.regression import setup as setup_regression, compare_models as compare_models_regression, pull as pull_regression
 from ydata_profiling import ProfileReport
 
-# Create a directory to save model_dir if it doesn't exist
-if not os.path.exists('model_dir'):
-    
-    import tempfile
-
-    # Temporary Directory Handling for Deployment
-    temp_dir = tempfile.TemporaryDirectory()
-    model_dir = temp_dir.name
-
+# Create a directory to save models if it doesn't exist
+if not os.path.exists('models'):
+    os.makedirs('models')
 
 # Initialize session state for recent actions
 if 'recent_actions' not in st.session_state:
@@ -32,12 +26,7 @@ if option == "Upload Data":
     st.header("Upload your dataset")
     
     if uploaded_file:
-        import tempfile
-with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as temp_data:
-    data_path = temp_data.name
-    with open(data_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-
+        data_path = os.path.join('data', uploaded_file.name)
         with open(data_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
         st.success(f"Uploaded {uploaded_file.name} successfully!")
@@ -48,22 +37,12 @@ elif option == "Profile Data":
     st.header("Profile your dataset")
     
     if uploaded_file:
-        
-import tempfile
-with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as temp_data:
-    data_path = temp_data.name
-    with open(data_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-
+        data_path = os.path.join('data', uploaded_file.name)
         
         if st.button("Generate Profile Report"):
             data = pd.read_csv(data_path)
             st.session_state.profile = ProfileReport(data, title="Dataset Profiling Report")
-            
-import tempfile
-with tempfile.NamedTemporaryFile(delete=False, suffix='.html') as temp_report:
-    output_path = temp_report.name
-
+            output_path = os.path.join('reports', f'{uploaded_file.name}_report.html')
             st.session_state.profile.to_file(output_path)
             st.session_state.report_path = output_path  # Store the path in session state
             st.success(f"Profile report saved at: {output_path}")
@@ -88,13 +67,7 @@ elif option == "Model Training":
     mode = st.sidebar.radio("Choose Mode", options=["Auto Mode", "Manual Mode"])
     
     if uploaded_file:
-        
-import tempfile
-with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as temp_data:
-    data_path = temp_data.name
-    with open(data_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-
+        data_path = os.path.join('data', uploaded_file.name)
         df = pd.read_csv(data_path)
 
         st.write("Dataset Preview:")
@@ -111,13 +84,11 @@ with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as temp_data:
             if is_classification:
                 if st.button("Train Classification Model with PyCaret"):
                     setup_classification(data=df, target=target_variable, session_id=123, fold_strategy='stratifiedkfold')
-                    best_model = compare_model_dir_classification(include=['xgboost', 'lightgbm', 'rf', 'dt', 'knn', 'nb', 'lr', 'svm'])
+                    best_model = compare_models_classification(include=['xgboost', 'lightgbm', 'rf', 'dt', 'knn', 'nb', 'lr', 'svm'])
                     st.write("Training complete. Best model:", best_model)
 
-                    model_filename = os.path.join('model_dir', f'{target_variable}_classification_model.pkl')
-                    
-with open(model_filename, "wb") as f:
-
+                    model_filename = os.path.join('models', f'{target_variable}_classification_model.pkl')
+                    with open(model_filename, 'wb') as f:
                         pickle.dump(best_model, f)
                     st.success(f"Model saved as {model_filename}")
 
@@ -126,13 +97,11 @@ with open(model_filename, "wb") as f:
             else:
                 if st.button("Train Regression Model with PyCaret"):
                     setup_regression(data=df, target=target_variable, session_id=123, fold_strategy='kfold')
-                    best_model = compare_model_dir_regression(include=['lr', 'rf', 'dt', 'svm', 'lasso'])
+                    best_model = compare_models_regression(include=['lr', 'rf', 'dt', 'svm', 'lasso'])
                     st.write("Training complete. Best model:", best_model)
 
-                    model_filename = os.path.join('model_dir', f'{target_variable}_regression_model.pkl')
-                    
-with open(model_filename, "wb") as f:
-
+                    model_filename = os.path.join('models', f'{target_variable}_regression_model.pkl')
+                    with open(model_filename, 'wb') as f:
                         pickle.dump(best_model, f)
                     st.success(f"Model saved as {model_filename}")
 
@@ -152,8 +121,8 @@ with open(model_filename, "wb") as f:
 
             is_classification = df_manual[target_variable].dtype == 'object' or df_manual[target_variable].nunique() < 10
 
-            # Manually select model_dir
-            model_dir_to_use = st.multiselect("Select model_dir to train", options=['xgboost', 'lightgbm', 'rf', 'dt', 'knn', 'nb', 'lr', 'svm'])
+            # Manually select models
+            models_to_use = st.multiselect("Select models to train", options=['xgboost', 'lightgbm', 'rf', 'dt', 'knn', 'nb', 'lr', 'svm'])
 
             # Define evaluation metrics based on task type
             if is_classification:
@@ -178,15 +147,13 @@ with open(model_filename, "wb") as f:
             evaluation_metric = st.selectbox("Select Evaluation Metric", options=metric_options)
 
             if is_classification:
-                if st.button("Train Selected Classification Model") and model_dir_to_use:
+                if st.button("Train Selected Classification Model") and models_to_use:
                     setup_classification(data=df_manual, target=target_variable, session_id=123, fold_strategy='stratifiedkfold')
-                    best_model = compare_model_dir_classification(include=model_dir_to_use, sort=metric_map[evaluation_metric])
+                    best_model = compare_models_classification(include=models_to_use, sort=metric_map[evaluation_metric])
                     st.write("Training complete. Best model:", best_model)
 
-                    model_filename = os.path.join('model_dir', f'{target_variable}_manual_classification_model.pkl')
-                    
-with open(model_filename, "wb") as f:
-
+                    model_filename = os.path.join('models', f'{target_variable}_manual_classification_model.pkl')
+                    with open(model_filename, 'wb') as f:
                         pickle.dump(best_model, f)
                     st.success(f"Model saved as {model_filename}")
 
@@ -195,15 +162,13 @@ with open(model_filename, "wb") as f:
                         st.download_button("Download Model", data=f, file_name=model_filename)
 
             else:
-                if st.button("Train Selected Regression Model") and model_dir_to_use:
+                if st.button("Train Selected Regression Model") and models_to_use:
                     setup_regression(data=df_manual, target=target_variable, session_id=123, fold_strategy='kfold')
-                    best_model = compare_model_dir_regression(include=model_dir_to_use, sort=metric_map[evaluation_metric])
+                    best_model = compare_models_regression(include=models_to_use, sort=metric_map[evaluation_metric])
                     st.write("Training complete. Best model:", best_model)
 
-                    model_filename = os.path.join('model_dir', f'{target_variable}_manual_regression_model.pkl')
-                    
-with open(model_filename, "wb") as f:
-
+                    model_filename = os.path.join('models', f'{target_variable}_manual_regression_model.pkl')
+                    with open(model_filename, 'wb') as f:
                         pickle.dump(best_model, f)
                     st.success(f"Model saved as {model_filename}")
 
