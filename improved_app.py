@@ -32,8 +32,7 @@ if option == "Upload Data":
     st.header("Upload your dataset")
     
     if uploaded_file:
-        
-import tempfile
+        import tempfile
 with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as temp_data:
     data_path = temp_data.name
     with open(data_path, "wb") as f:
